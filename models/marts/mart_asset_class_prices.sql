@@ -1,12 +1,15 @@
 {{ config(materialized='table') }}
 -- Market-value-weighted asset-class total-return indices (base 100), pivoted
 -- wide. Each security is weighted by its share of its asset class by current
--- market value (aggregated across accounts, via fct_portfolio_holdings), held
+-- market value in the ACC-MULTI account (the whole-universe book), held
 -- constant across history — a current-weights index, more defensible than an
--- equal-weighted one and reused directly by the TAA backtester.
+-- equal-weighted one and reused directly by the TAA backtester. Restricting
+-- to one account avoids double-counting securities held in several books.
+-- The series starts with an explicit base-100 row on the first price date.
 with mv as (
     select security_id, sum(market_value) as mv
     from {{ ref('fct_portfolio_holdings') }}
+    where account_id = 'ACC-MULTI'
     group by 1
 ),
 
@@ -32,6 +35,15 @@ ac_returns as (
 ),
 
 indexed as (
+    -- base-100 anchor on the first price date (returns start one month later)
+    select
+        (select min(as_of_date) from {{ ref('int_security_returns') }}) as as_of_date,
+        asset_class,
+        100.0 as index_level
+    from (select distinct asset_class from weights)
+
+    union all
+
     select
         as_of_date,
         asset_class,

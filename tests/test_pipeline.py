@@ -83,12 +83,11 @@ def test_benchmark_weights_sum_to_one(wh):
     assert worst < 1e-9
 
 
-def test_asset_class_index_starts_near_base(wh):
-    # first row of each series should be within a month's move of 100
+def test_asset_class_index_starts_at_base_100(wh):
+    # the first row is the explicit base-100 anchor for every series
     first = wh.fetch("SELECT eq_index, credit_index, govt_index, cash_index "
                      "FROM main.mart_asset_class_prices ORDER BY as_of_date LIMIT 1")[0]
-    assert all(80 < v < 120 for v in first)
-    assert abs(first[3] - 100.0) < 1e-9         # cash index is flat at 100
+    assert all(abs(v - 100.0) < 1e-9 for v in first)
 
 
 # -- exports produce the consumer-shaped files -----------------------------
