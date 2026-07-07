@@ -189,9 +189,11 @@ def generate_seeds(project: Project, seed: int = 7, n_months: int = 36) -> list[
     #  3) messy rating on CB003 -> trim + upper
         if row[0] == "CB003":
             row[7] = " bbb "
-    #  4) lower-case currency on EQ010 -> upper-cased
+    #  4) lower-case currency on EQ010 -> upper-cased (case only: the value must
+    #     stay the security's true currency or the master would contradict the
+    #     price feed, which assert_price_currency_matches_master would catch)
         if row[0] == "EQ010":
-            row[6] = "usd"
+            row[6] = row[6].lower()
     _write_csv(project.seeds_dir / "security_master.csv", sm_header, sm_rows)
     written.append(project.seeds_dir / "security_master.csv")
 

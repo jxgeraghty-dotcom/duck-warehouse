@@ -55,7 +55,7 @@ def test_rating_normalised(wh):
 
 def test_currency_upper_cased(wh):
     ccy = _scalar(wh, "SELECT currency FROM main.dim_security WHERE security_id = 'EQ010'")
-    assert ccy == "USD"         # from a raw 'usd'
+    assert ccy == "EUR"         # from a raw 'eur' (EQ010 is a European equity)
 
 
 def test_bad_prices_cleaned_to_null(wh):
