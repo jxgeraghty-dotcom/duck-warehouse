@@ -92,6 +92,18 @@ def test_incremental_appends_only_new_months(fresh_project):
         assert wh.fetch(q)[0][0] == before + 1
 
 
+# -- seed failure UX ---------------------------------------------------------
+
+def test_missing_seed_is_an_error_step_not_a_traceback(tmp_path):
+    proj = load_project(ROOT / "dw.yaml")
+    proj.database = tmp_path / "t.duckdb"
+    proj.seeds_dir = tmp_path / "no_seeds_here"
+    with Warehouse(proj) as wh:
+        steps = wh.seed()
+    assert steps and all(s.status == "error" for s in steps)
+    assert "Seed file missing" in steps[0].error
+
+
 # -- failure isolation -------------------------------------------------------
 
 def test_failed_model_skips_descendants(fresh_project):

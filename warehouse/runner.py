@@ -56,7 +56,12 @@ class Warehouse:
 
     # -- seeds -----------------------------------------------------------
     def seed(self) -> list[StepResult]:
-        """Load every declared source's CSV into the raw schema as text."""
+        """Load every declared source's CSV into the raw schema as text.
+
+        Failures (e.g. a missing seed file) are recorded as ``error`` steps
+        rather than raised, so the CLI can render them in the step table and
+        exit non-zero instead of dumping a traceback.
+        """
 
         results: list[StepResult] = []
         for src in self.project.sources.values():
@@ -79,7 +84,6 @@ class Warehouse:
             except Exception as exc:  # noqa: BLE001 - surfaced to the CLI
                 results.append(StepResult(src.name, "seed", "table", "error", 0,
                                           time.perf_counter() - start, str(exc)))
-                raise
         return results
 
     # -- models ----------------------------------------------------------
@@ -171,10 +175,16 @@ class Warehouse:
 
 
 def build_all(project: Project) -> list[StepResult]:
-    """Convenience: seed + run in one call (used by the end-to-end tests)."""
+    """Convenience: seed + run in one call (used by the end-to-end tests).
+
+    If any seed fails, the model run is skipped and only the seed steps are
+    returned — the same short-circuit `dw build` applies.
+    """
 
     with closing(Warehouse(project)) as wh:
         seeded = wh.seed()
+        if any(s.status != "ok" for s in seeded):
+            return seeded
         built = wh.run()
         return seeded + built
 

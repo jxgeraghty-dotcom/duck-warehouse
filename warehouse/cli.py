@@ -123,11 +123,12 @@ def cmd_build(project: Project, args: argparse.Namespace) -> int:
         print(f"Generated seed files in {project.seeds_dir}")
     with Warehouse(project) as wh:
         seed_steps = wh.seed()
-        run_steps = wh.run(full_refresh=args.full_refresh)
-    all_steps = seed_steps + run_steps
+        seeds_ok = all(s.status == "ok" for s in seed_steps)
+        run_steps = wh.run(full_refresh=args.full_refresh) if seeds_ok else []
     ok = _print_steps("Seeding raw sources", seed_steps)
-    ok = _print_steps("Building models", run_steps) and ok
-    _write_run_results(project, all_steps)
+    if seeds_ok:
+        ok = _print_steps("Building models", run_steps) and ok
+    _write_run_results(project, seed_steps + run_steps)
     if not ok:
         print("\nBuild failed; skipping tests.")
         return 1
