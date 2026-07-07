@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: stg_security_master
+    description: >
+      Cleaned, de-duplicated instrument reference data. Repairs the raw feed's
+      whitespace, blank asset classes, and mixed-case ratings/currencies.
+    columns:
+      - name: security_id
+        description: Unique instrument identifier (trimmed).
+        tests: [not_null, unique]
+      - name: asset_class
+        description: Equity / Corporate / Government / Cash (recovered if blank).
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Equity, Corporate, Government, Cash]
+      - name: currency
+        description: ISO currency code, upper-cased.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [USD, EUR, GBP, JPY]
+      - name: rating
+        description: Credit rating, upper-cased; 'NR' when not rated.
+        tests: [not_null]
+
+  - name: stg_prices
+    description: Typed monthly close prices; non-positive/blank prices set to NULL.
+    columns:
+      - name: as_of_date
+        tests: [not_null]
+      - name: security_id
+        tests: [not_null]
+
+  - name: stg_holdings
+    description: Typed account positions (quantity per account/date).
+    columns:
+      - name: account_id
+        tests: [not_null]
+      - name: security_id
+        tests: [not_null]
+
+  - name: stg_benchmark
+    description: Raw (un-normalised) benchmark constituent weights.
+    columns:
+      - name: benchmark_id
+        tests: [not_null]
+      - name: security_id
+        tests: [not_null]
+
+  - name: stg_factor_returns
+    description: Typed factor return time series.
+    columns:
+      - name: factor_id
+        tests: [not_null]
+      - name: as_of_date
+        tests: [not_null]
+
+  - name: stg_macro
+    description: Typed macro series in long format.
+    columns:
+      - name: series_id
+        tests: [not_null]

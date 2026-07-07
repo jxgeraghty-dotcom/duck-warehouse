@@ -1,0 +1,42 @@
+security_id,name,issuer,asset_class,gics_sector,region,currency,rating,maturity_date,coupon_rate,effective_duration,inception_date,is_active
+EQ001,Financials Equity 1,Financials Holdings 1,Equity,Financials,Europe,EUR,NR,,,0,2016-01-31,true
+EQ002,Health Care Equity 2,Health Care Holdings 2,Equity,Health Care,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+EQ003,Energy Equity 3,Energy Holdings 3,Equity,Energy,North America,USD,NR,,,0,2016-01-31,true
+EQ004,Industrials Equity 4,Industrials Holdings 4,Equity,Industrials,Europe,EUR,NR,,,0,2016-01-31,true
+EQ005,Consumer Equity 5,Consumer Holdings 5,Equity,Consumer,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+EQ006,Technology Equity 6,Technology Holdings 6,Equity,Technology,North America,USD,NR,,,0,2016-01-31,true
+EQ007,Financials Equity 7,Financials Holdings 7,,Financials,Europe,EUR,NR,,,0,2016-01-31,true
+EQ008,Health Care Equity 8,Health Care Holdings 8,Equity,Health Care,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+EQ009,Energy Equity 9,Energy Holdings 9,Equity,Energy,North America,USD,NR,,,0,2016-01-31,true
+EQ010,Industrials Equity 10,Industrials Holdings 10,Equity,Industrials,Europe,usd,NR,,,0,2016-01-31,true
+EQ011,Consumer Equity 11,Consumer Holdings 11,Equity,Consumer,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+EQ012,Technology Equity 12,Technology Holdings 12,Equity,Technology,North America,USD,NR,,,0,2016-01-31,true
+EQ013,Financials Equity 13,Financials Holdings 13,Equity,Financials,Europe,EUR,NR,,,0,2016-01-31,true
+EQ014,Health Care Equity 14,Health Care Holdings 14,Equity,Health Care,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+EQ015,Energy Equity 15,Energy Holdings 15,Equity,Energy,North America,USD,NR,,,0,2016-01-31,true
+EQ016,Industrials Equity 16,Industrials Holdings 16,Equity,Industrials,Europe,EUR,NR,,,0,2016-01-31,true
+EQ017,Consumer Equity 17,Consumer Holdings 17,Equity,Consumer,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+EQ018,Technology Equity 18,Technology Holdings 18,Equity,Technology,North America,USD,NR,,,0,2016-01-31,true
+EQ019,Financials Equity 19,Financials Holdings 19,Equity,Financials,Europe,EUR,NR,,,0,2016-01-31,true
+EQ020,Health Care Equity 20,Health Care Holdings 20,Equity,Health Care,Asia Pacific,JPY,NR,,,0,2016-01-31,true
+CB001,Financials Corp AA 2028,Financials Capital 1,Corporate,Financials,Europe,EUR,AA,2028-06-30,3.82,2.96,2019-06-30,true
+CB002,Health Care Corp A 2029,Health Care Capital 2,Corporate,Health Care,Asia Pacific,JPY,A,2029-06-30,3.37,2.28,2019-06-30,true
+CB003,Energy Corp BBB 2030,Energy Capital 3,Corporate,Energy,North America,USD, bbb ,2030-06-30,5.06,6.15,2019-06-30,true
+CB004,Industrials Corp BB 2031,Industrials Capital 4,Corporate,Industrials,Europe,EUR,BB,2031-06-30,3.78,4.15,2019-06-30,true
+CB005,Consumer Corp B 2032,Consumer Capital 5,Corporate,Consumer,Asia Pacific,JPY,B,2032-06-30,3.82,6.18,2019-06-30,true
+CB006,Technology Corp AAA 2033,Technology Capital 6,Corporate,Technology,North America,USD,AAA,2033-06-30,4.09,5.25,2019-06-30,true
+CB007,Financials Corp AA 2034,Financials Capital 7,Corporate,Financials,Europe,EUR,AA,2034-06-30,2.1,6.43,2019-06-30,true
+CB008,Health Care Corp A 2027,Health Care Capital 8,Corporate,Health Care,Asia Pacific,JPY,A,2027-06-30,4.54,2.57,2019-06-30,true
+CB009,Energy Corp BBB 2028,Energy Capital 9,Corporate,Energy,North America,USD,BBB,2028-06-30,2.81,1.96,2019-06-30,true
+CB010,Industrials Corp BB 2029,Industrials Capital 10,Corporate,Industrials,Europe,EUR,BB,2029-06-30,5.08,6.6,2019-06-30,true
+CB011,Consumer Corp B 2030,Consumer Capital 11,Corporate,Consumer,Asia Pacific,JPY,B,2030-06-30,4.94,4.83,2019-06-30,true
+CB012,Technology Corp AAA 2031,Technology Capital 12,Corporate,Technology,North America,USD,AAA,2031-06-30,5.94,3.68,2019-06-30,true
+GB001,US Treasury 2028,US Treasury,Government,Government,North America,USD,AAA,2028-12-31,3.57,6.78,2018-12-31,true
+GB002,German Bund 2029,German Bund,Government,Government,Europe,EUR,AAA,2029-12-31,1.75,2.22,2018-12-31,true
+GB003,UK Gilt 2030,UK Gilt,Government,Government,Europe,GBP,AA,2030-12-31,4.34,8.13,2018-12-31,true
+GB004,Japan JGB 2031,Japan JGB,Government,Government,Asia Pacific,JPY,A,2031-12-31,1.86,6.94,2018-12-31,true
+GB005,US Treasury 2032,US Treasury,Government,Government,North America,USD,AAA,2032-12-31,3.93,7.55,2018-12-31,true
+GB006,French OAT 2033,French OAT,Government,Government,Europe,EUR,AA,2033-12-31,2.04,7.55,2018-12-31,true
+GB007,US Treasury 2034,US Treasury,Government,Government,North America,USD,AAA,2034-12-31,4.18,5.13,2018-12-31,true
+CASH,USD Cash,Cash,Cash,Cash,North America,USD,NR,,,0,2016-01-31,true
+ EQ001,Technology Equity 1 (stale feed),Financials Holdings 1,Equity,Financials,Europe,EUR,NR,,,0,2016-01-31,true

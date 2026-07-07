@@ -1,0 +1,45 @@
+# duck-warehouse project configuration.
+#
+# This is the analogue of dbt_project.yml: it tells the runner where the
+# database lives, where models/seeds/tests are, and what schemas to build into.
+# Everything is path-relative to this file so the project is location-independent.
+
+name: duck_warehouse
+version: 0.1.0
+
+# Where the DuckDB file is written. Delete it any time; `dw build` recreates it.
+database: warehouse.duckdb
+
+# Schema that raw seeds land in (the "source" layer), and the schema that
+# transformed models are built into (staging / intermediate / marts).
+raw_schema: raw
+target_schema: main
+
+# Directory layout.
+paths:
+  seeds: seeds
+  models: models
+  exports: exports
+  reports: reports
+
+# Default materialization per model layer (folder name -> view|table).
+# Staging stays as thin views over raw; heavier marts are materialised as
+# tables. Any model can override this with a `{{ config(materialized=...) }}`
+# block at the top of its .sql file.
+materializations:
+  staging: view
+  intermediate: view
+  marts: table
+
+# Declared sources. Models reference these via {{ source('raw', '<name>') }}.
+# Each maps to a seed CSV loaded into the raw schema by `dw seed`.
+sources:
+  raw:
+    security_master: { seed: security_master.csv }
+    prices: { seed: prices.csv }
+    holdings: { seed: holdings.csv }
+    benchmark: { seed: benchmark.csv }
+    factor_returns: { seed: factor_returns.csv }
+    factor_exposures: { seed: factor_exposures.csv }
+    macro: { seed: macro.csv }
+    fx_rates: { seed: fx_rates.csv }

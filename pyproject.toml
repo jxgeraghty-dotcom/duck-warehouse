@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "duck-warehouse"
+version = "0.1.0"
+description = "A dependency-light, dbt-style analytics warehouse on DuckDB that feeds the portfolio/compliance/TAA showcase tools."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "James Geraghty", email = "jxgeraghty@gmail.com" }]
+dependencies = [
+    "duckdb>=0.10",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "ruff>=0.4"]
+
+[project.scripts]
+dw = "warehouse.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["warehouse*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

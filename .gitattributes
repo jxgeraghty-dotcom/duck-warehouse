@@ -1,0 +1,5 @@
+# Normalise line endings so the repo is stable across Windows/macOS/Linux.
+* text=auto eol=lf
+*.csv text eol=lf
+*.sql text eol=lf
+*.duckdb binary

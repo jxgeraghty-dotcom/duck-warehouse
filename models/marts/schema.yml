@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: dim_security
+    description: >
+      Conformed security dimension — the single source of instrument attributes
+      for the risk monitor and compliance engine.
+    columns:
+      - name: security_id
+        description: Primary key.
+        tests: [not_null, unique]
+      - name: asset_class
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Equity, Corporate, Government, Cash]
+      - name: rating
+        tests: [not_null]
+
+  - name: fct_portfolio_holdings
+    description: Valued positions with active weights per account.
+    columns:
+      - name: security_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_security')
+              field: security_id
+      - name: account_id
+        tests: [not_null]
+      - name: weight
+        tests: [not_null]
+
+  - name: fct_benchmark_weights
+    description: Benchmark weights normalised to sum to 1.0 per benchmark/date.
+    columns:
+      - name: security_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_security')
+              field: security_id
+      - name: weight
+        tests: [not_null]
+
+  - name: fct_security_returns
+    description: Monthly security return fact (nulls dropped).
+    columns:
+      - name: total_return
+        tests: [not_null]
+      - name: security_id
+        tests:
+          - relationships:
+              to: ref('dim_security')
+              field: security_id
+
+  - name: fct_factor_exposures
+    description: Security x factor exposure fact restricted to known securities.
+    columns:
+      - name: security_id
+        tests:
+          - relationships:
+              to: ref('dim_security')
+              field: security_id
+      - name: exposure
+        tests: [not_null]
+
+  - name: mart_asset_class_prices
+    description: Equal-weighted asset-class total-return indices (base 100), wide.
+
+  - name: mart_macro_wide
+    description: Macro series pivoted wide for the TAA backtester.
+
+  - name: mart_data_quality
+    description: Data-observability metrics (freshness, completeness, integrity).

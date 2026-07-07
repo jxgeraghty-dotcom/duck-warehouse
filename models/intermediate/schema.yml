@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: int_security_returns
+    description: Monthly simple returns derived from cleaned prices.
+    columns:
+      - name: security_id
+        tests: [not_null]
+
+  - name: int_positions_valued
+    description: Positions valued in local currency and converted to USD.
+    columns:
+      - name: security_id
+        tests: [not_null]
+      - name: market_value
+        description: Position market value in USD (base currency).
+        tests: [not_null]

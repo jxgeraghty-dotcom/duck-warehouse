@@ -1,0 +1,20 @@
+# Build artifacts
+warehouse.duckdb
+warehouse.duckdb.wal
+exports/*.csv
+reports/*.json
+reports/*.md
+!reports/.gitkeep
+!exports/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+.venv/
+venv/
