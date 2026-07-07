@@ -20,12 +20,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 
 from warehouse import __version__
-from warehouse.dag import discover_models, topological_order
+from warehouse.dag import discover_models, select_nodes, topological_order
 from warehouse.docs import write_docs
 from warehouse.export import run_exports
+from warehouse.freshness import check_freshness
 from warehouse.project import Project, load_project
 from warehouse.runner import StepResult, Warehouse, results_as_dicts
 from warehouse.seeds import generate_seeds
@@ -69,7 +69,8 @@ def cmd_seed(project: Project, args: argparse.Namespace) -> int:
 
 def cmd_run(project: Project, args: argparse.Namespace) -> int:
     with Warehouse(project) as wh:
-        steps = wh.run()
+        steps = wh.run(select=args.select, exclude=args.exclude,
+                       full_refresh=args.full_refresh)
     ok = _print_steps("Building models", steps)
     _write_run_results(project, steps)
     return 0 if ok else 1
@@ -77,22 +78,42 @@ def cmd_run(project: Project, args: argparse.Namespace) -> int:
 
 def cmd_test(project: Project, args: argparse.Namespace) -> int:
     cases = load_all_tests(project)
+    select = getattr(args, "select", None)
+    exclude = getattr(args, "exclude", None)
+    if select or exclude:
+        models = discover_models(project)
+        chosen = select_nodes(models, select, exclude)
+        # keep generic tests on selected models; singular tests always run
+        cases = [c for c in cases if c.kind == "singular" or c.scope in chosen]
+    store = getattr(args, "store_failures", False)
     with Warehouse(project) as wh:
-        results = run_tests(wh, cases)
+        results = run_tests(wh, cases, store_failures=store)
     print(f"\nRunning {len(results)} tests")
     print("-" * 21)
-    passed = failed = errored = 0
+    passed = warned = failed = errored = 0
     for r in results:
         if r.status == "pass":
             passed += 1
             continue
-        marker = "[FAIL]" if r.status == "fail" else "[ERR]"
-        detail = f"{r.failures} failing rows" if r.status == "fail" else r.error.splitlines()[0]
-        print(f"  {marker} {r.name:<45} {detail}")
-        failed += r.status == "fail"
-        errored += r.status == "error"
-    print(f"\n  {passed} passed, {failed} failed, {errored} errored "
-          f"of {len(results)} tests")
+        if r.status == "warn":
+            warned += 1
+            marker = "[WARN]"
+        elif r.status == "fail":
+            failed += 1
+            marker = "[FAIL]"
+        else:
+            errored += 1
+            marker = "[ERR] "
+        detail = (f"{r.failures} failing rows" if r.status in ("fail", "warn")
+                  else r.error.splitlines()[0])
+        stored = f"  -> {r.stored_at}" if r.stored_at else ""
+        print(f"  {marker} {r.name:<45} {detail}{stored}")
+    summary = f"\n  {passed} passed, {failed} failed"
+    if warned:
+        summary += f", {warned} warned"
+    if errored:
+        summary += f", {errored} errored"
+    print(summary + f" of {len(results)} tests")
     return 0 if failed == 0 and errored == 0 else 1
 
 
@@ -102,7 +123,7 @@ def cmd_build(project: Project, args: argparse.Namespace) -> int:
         print(f"Generated seed files in {project.seeds_dir}")
     with Warehouse(project) as wh:
         seed_steps = wh.seed()
-        run_steps = wh.run()
+        run_steps = wh.run(full_refresh=args.full_refresh)
     all_steps = seed_steps + run_steps
     ok = _print_steps("Seeding raw sources", seed_steps)
     ok = _print_steps("Building models", run_steps) and ok
@@ -124,6 +145,26 @@ def cmd_export(project: Project, args: argparse.Namespace) -> int:
     for spec, rows in written:
         print(f"  {spec.filename:<28} {rows:>6,} rows  -> {spec.target_tool}")
     return 0
+
+
+def cmd_source(project: Project, args: argparse.Namespace) -> int:
+    if args.source_command != "freshness":
+        print("usage: dw source freshness")
+        return 2
+    with Warehouse(project) as wh:
+        results = check_freshness(wh)
+    print("\nSource freshness")
+    print("-" * 16)
+    worst_error = False
+    for r in results:
+        marker = {"pass": "[ok]  ", "warn": "[WARN]",
+                  "error": "[ERR] ", "skip": "[skip]"}[r.status]
+        latest = r.max_loaded_at or "-"
+        print(f"  {marker} {r.source:<20} latest={latest:<12} {r.detail}")
+        worst_error = worst_error or r.status == "error"
+    if not results:
+        print("  (no sources declare a freshness policy)")
+    return 1 if worst_error else 0
 
 
 def cmd_docs(project: Project, args: argparse.Namespace) -> int:
@@ -184,18 +225,36 @@ def build_parser() -> argparse.ArgumentParser:
     p_seed.set_defaults(func=cmd_seed)
 
     p_run = sub.add_parser("run", help="build all models")
+    p_run.add_argument("--select", nargs="*", metavar="SELECTOR",
+                       help="dbt-style node selectors, e.g. stg_prices+ +dim_security")
+    p_run.add_argument("--exclude", nargs="*", metavar="SELECTOR", help="selectors to exclude")
+    p_run.add_argument("--full-refresh", action="store_true",
+                       help="rebuild incremental models from scratch")
     p_run.set_defaults(func=cmd_run)
 
-    p_test = sub.add_parser("test", help="run schema + data tests")
+    p_test = sub.add_parser("test", help="run schema + source + data tests")
+    p_test.add_argument("--select", nargs="*", metavar="SELECTOR",
+                        help="restrict model tests to selected models")
+    p_test.add_argument("--exclude", nargs="*", metavar="SELECTOR", help="selectors to exclude")
+    p_test.add_argument("--store-failures", action="store_true",
+                        help="write failing rows to reports/failures/")
     p_test.set_defaults(func=cmd_test)
 
     p_build = sub.add_parser("build", help="seed + run + test + docs")
     p_build.add_argument("--generate", action="store_true", help="regenerate sample CSVs first")
     p_build.add_argument("--seed", type=int, default=7, help="RNG seed for data generation")
+    p_build.add_argument("--full-refresh", action="store_true",
+                         help="rebuild incremental models from scratch")
+    p_build.add_argument("--store-failures", action="store_true",
+                         help="write failing rows to reports/failures/")
     p_build.set_defaults(func=cmd_build)
 
     p_export = sub.add_parser("export", help="write consumer-shaped CSVs")
     p_export.set_defaults(func=cmd_export)
+
+    p_source = sub.add_parser("source", help="source utilities (freshness)")
+    p_source.add_argument("source_command", choices=["freshness"], help="what to check")
+    p_source.set_defaults(func=cmd_source)
 
     p_docs = sub.add_parser("docs", help="write lineage + catalog")
     p_docs.set_defaults(func=cmd_docs)

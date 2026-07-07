@@ -32,14 +32,28 @@ materializations:
   marts: table
 
 # Declared sources. Models reference these via {{ source('raw', '<name>') }}.
-# Each maps to a seed CSV loaded into the raw schema by `dw seed`.
+# Each maps to a seed CSV loaded into the raw schema by `dw seed`. Time-series
+# sources carry a freshness policy: `dw source freshness` warns/errors when the
+# newest loaded_at_field is older than the given number of days.
 sources:
   raw:
     security_master: { seed: security_master.csv }
-    prices: { seed: prices.csv }
-    holdings: { seed: holdings.csv }
-    benchmark: { seed: benchmark.csv }
-    factor_returns: { seed: factor_returns.csv }
     factor_exposures: { seed: factor_exposures.csv }
-    macro: { seed: macro.csv }
-    fx_rates: { seed: fx_rates.csv }
+    prices:
+      seed: prices.csv
+      freshness: { loaded_at_field: as_of_date, warn_after_days: 45, error_after_days: 90 }
+    holdings:
+      seed: holdings.csv
+      freshness: { loaded_at_field: as_of_date, warn_after_days: 45, error_after_days: 90 }
+    benchmark:
+      seed: benchmark.csv
+      freshness: { loaded_at_field: as_of_date, warn_after_days: 45, error_after_days: 90 }
+    factor_returns:
+      seed: factor_returns.csv
+      freshness: { loaded_at_field: as_of_date, warn_after_days: 45, error_after_days: 90 }
+    macro:
+      seed: macro.csv
+      freshness: { loaded_at_field: as_of_date, warn_after_days: 45, error_after_days: 90 }
+    fx_rates:
+      seed: fx_rates.csv
+      freshness: { loaded_at_field: as_of_date, warn_after_days: 45, error_after_days: 90 }

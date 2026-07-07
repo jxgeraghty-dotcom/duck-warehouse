@@ -8,7 +8,6 @@ already expects. Each :class:`ExportSpec` documents which tool it feeds.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from warehouse.runner import Warehouse
 
@@ -70,6 +69,14 @@ def export_specs(target_schema: str) -> list[ExportSpec]:
             f"""SELECT as_of_date, factor_id, factor_return
                 FROM {s}.fct_factor_returns
                 ORDER BY as_of_date, factor_id""",
+        ),
+        ExportSpec(
+            "factor_covariance.csv",
+            "Portfolio risk & exposure monitor",
+            "Annualised factor covariance matrix (long format).",
+            f"""SELECT factor_i, factor_j, covariance, correlation
+                FROM {s}.mart_factor_covariance
+                ORDER BY factor_i, factor_j""",
         ),
         ExportSpec(
             "asset_class_index.csv",

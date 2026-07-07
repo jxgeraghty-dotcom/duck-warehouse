@@ -1,7 +1,8 @@
 -- Clean the raw instrument master: this is where every piece of upstream mess
 -- is repaired so downstream models can trust the data.
---   * trim stray whitespace on the key and de-duplicate (a stale feed re-sent
---     EQ001 with a leading space)
+--   * trim stray whitespace on the key and de-duplicate, keeping the most
+--     recently ingested row per key (a stale feed re-sent EQ001 with a leading
+--     space and an older load timestamp)
 --   * recover a blank asset_class from the security_id prefix
 --   * normalise rating (trim/upper, blank -> 'NR') and currency (upper)
 --   * cast numerics/dates safely with try_cast
@@ -28,7 +29,8 @@ with cleaned as (
         try_cast(coupon_rate as double)                     as coupon_rate,
         coalesce(try_cast(effective_duration as double), 0) as effective_duration,
         try_cast(inception_date as date)                    as inception_date,
-        lower(trim(is_active)) in ('true', '1', 't', 'yes') as is_active
+        lower(trim(is_active)) in ('true', '1', 't', 'yes') as is_active,
+        try_cast(ingested_at as timestamp)                  as ingested_at
     from {{ source('raw', 'security_master') }}
 ),
 
@@ -37,7 +39,7 @@ deduped as (
         *,
         row_number() over (
             partition by security_id
-            order by inception_date desc nulls last, name
+            order by ingested_at desc nulls last, security_id
         ) as _rn
     from cleaned
 )

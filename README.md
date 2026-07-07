@@ -40,19 +40,25 @@ materialisation, schema + data tests) rather than hiding them behind a tool.
 
 ## The mini-dbt framework
 
-`dw` is a tiny ELT engine. It understands three templating constructs inside a
+`dw` is a tiny ELT engine. It understands these templating constructs inside a
 model's SQL:
 
 | Construct | Resolves to | Purpose |
 | --- | --- | --- |
 | `{{ source('raw', 'prices') }}` | `raw.prices` | a raw seed table |
 | `{{ ref('stg_prices') }}` | `main.stg_prices` | another model (creates a DAG edge) |
-| `{{ config(materialized='table') }}` | — | per-model view/table override |
+| `{{ config(materialized='table') }}` | — | per-model view/table/incremental override |
+| `{{ this }}` | the model's own relation | self-reference for incremental filters |
+| `{% if is_incremental() %} … {% endif %}` | kept only when appending | incremental-only SQL |
 
 From those it builds a dependency graph, topologically sorts it, and runs each
-model as `CREATE OR REPLACE {VIEW|TABLE}` in order. Tests are declared in
-`schema.yml` (generic tests) or written as SQL files under `data_tests/`
-(singular tests); each compiles to a query that must return zero failing rows.
+model as `CREATE OR REPLACE {VIEW|TABLE}` (or `INSERT` for incremental appends)
+in order. Tests are declared in `schema.yml` (generic tests, on models *and*
+sources) or written as SQL files under `data_tests/` (singular tests); each
+compiles to a query that must return zero failing rows and carries a `severity`
+(`error` or `warn`). Node **selection** (`dw run --select stg_prices+`),
+**incremental** models, and source **freshness** SLAs round out the dbt-shaped
+feature set.
 
 ## Architecture
 
@@ -118,9 +124,15 @@ already reads:
 | `portfolio_weights.csv` | Portfolio risk & exposure monitor | active weights (ACC-MULTI) |
 | `benchmark_weights.csv` | Portfolio risk & exposure monitor | benchmark weights (GLOBAL-60-40) |
 | `factor_returns.csv` | Portfolio risk & exposure monitor | factor return time series |
+| `factor_covariance.csv` | Portfolio risk & exposure monitor | annualised factor covariance/correlation matrix |
 | `compliance_portfolio.csv` | Guideline & compliance engine | valued positions (`security_id,issuer,sector,asset_class,market_value,rating,duration,currency`) |
-| `asset_class_index.csv` | Multi-asset TAA backtester | equal-weighted asset-class total-return indices |
+| `asset_class_index.csv` | Multi-asset TAA backtester | market-value-weighted asset-class total-return indices |
 | `macro.csv` | Multi-asset TAA backtester | macro series (yields, spreads, CPI), wide |
+
+`scripts/handoff_smoke.py` closes the loop: it exports every file and then loads
+each one back through DuckDB under the consuming tool's expected column types,
+failing if any export is missing, mis-shaped, or won't parse. CI runs it on
+every push, so a mart change that would break a downstream tool fails here first.
 
 ## Quickstart
 
@@ -142,9 +154,10 @@ in, so `dw build` alone rebuilds from them.
 | Command | Does |
 | --- | --- |
 | `dw seed [--generate]` | load raw CSVs into the `raw` schema (optionally regenerate them first) |
-| `dw run` | build staging → intermediate → marts in DAG order |
-| `dw test` | run all schema + data tests; non-zero exit on any failure |
-| `dw build [--generate]` | seed + run + test + docs — the one-shot demo |
+| `dw run [--select … --exclude … --full-refresh]` | build models in DAG order, or a selected subgraph |
+| `dw test [--select … --store-failures]` | run schema + source + data tests; non-zero exit on any error |
+| `dw build [--generate --full-refresh]` | seed + run + test + docs — the one-shot demo |
+| `dw source freshness` | flag feeds whose newest row is older than their SLA |
 | `dw export` | write consumer-shaped CSVs to `exports/` |
 | `dw docs` | write the lineage graph and model catalog to `reports/` |
 | `dw dag` | print the build order and write the Mermaid lineage |
@@ -154,14 +167,39 @@ in, so `dw build` alone rebuilds from them.
 Every command accepts `--project /path/to/dw.yaml` to run against a different
 project file.
 
+### Node selection
+
+`--select` / `--exclude` take the core dbt graph operators, so you can rebuild
+just the part of the DAG you are working on instead of everything:
+
+```bash
+dw run --select stg_prices+          # stg_prices and everything downstream
+dw run --select +mart_asset_class_prices   # that mart and everything it needs
+dw run --exclude mart_data_quality   # everything except this model
+dw test --select dim_security        # only the tests on dim_security
+```
+
+### Incremental models & freshness
+
+`fct_security_returns` is materialised **incrementally**: the first build loads
+the full history; later runs `INSERT` only months newer than what is stored
+(`dw run --full-refresh` forces a rebuild). `dw source freshness` compares each
+feed's newest `as_of_date` against the `warn_after_days` / `error_after_days`
+policy in `dw.yaml` — the guardrail that catches a stalled feed before it
+produces a silently wrong number.
+
 ## Testing & data quality
 
 Two complementary layers, both run by `dw test` and by `pytest`:
 
-- **40 declared tests** — generic (`not_null`, `unique`, `accepted_values`,
-  `relationships`) in the `schema.yml` files, plus five singular business-rule
-  tests in `data_tests/` (weights sum to one, no non-positive prices, returns
-  within bounds, no active instrument past maturity).
+- **49 declared tests** — generic (`not_null`, `unique`, `accepted_values`,
+  `relationships`) on models *and* on raw sources, plus six singular
+  business-rule tests in `data_tests/` (weights sum to one, no non-positive
+  prices, returns within bounds, factor covariance symmetric, and a
+  `severity: warn` check that no active instrument is past maturity).
+  Failing tests can be materialised with `dw test --store-failures` (offending
+  rows written to `reports/failures/`) so a red test is debuggable, not just a
+  count. A failing `warn` test is reported but does not break the build.
 - **`mart_data_quality`** — an always-on observability table (freshness,
   completeness, integrity) you would trend or alert on in production:
 
@@ -183,9 +221,12 @@ actually repaired end-to-end.
 
 - **DuckDB + a hand-rolled runner instead of dbt.** Keeps the dependency
   footprint to `duckdb` + `pyyaml`, runs anywhere with no profiles/adapters, and
-  makes the modelling mechanics legible. The cost is that only a subset of dbt's
-  feature set exists (no incremental models, snapshots, or full Jinja) — see
-  [Extending](#extending) for what a real deployment would add.
+  makes the modelling mechanics legible. It implements the dbt ideas that carry
+  the most weight — ref/source/config templating, a compiled DAG, node
+  selection, layered + incremental materialisation, schema/source/data tests
+  with severities, and source freshness. What it intentionally leaves out
+  (snapshots/SCD, full Jinja macros, a warehouse adapter) is listed under
+  [Extending](#extending).
 - **Raw seeds loaded as all-varchar.** The `raw` layer preserves whatever the
   feed sent (blanks, negatives, whitespace); every cast is explicit in staging,
   where it is visible and testable.
@@ -200,11 +241,12 @@ actually repaired end-to-end.
 ```
 dw.yaml                 project config (sources, schemas, materialisations)
 warehouse/              the mini-dbt engine
-  project.py            load dw.yaml
-  templating.py         ref / source / config resolution
-  dag.py                model discovery + topological sort
-  runner.py             seed + build against DuckDB
-  tests.py              schema + singular data tests
+  project.py            load dw.yaml (sources, freshness policy)
+  templating.py         ref / source / config / this / is_incremental
+  dag.py                model discovery + topological sort + node selection
+  runner.py             seed + build (view/table/incremental) against DuckDB
+  tests.py              schema + source + singular tests, severities, store-failures
+  freshness.py          source freshness / SLA checks
   seeds.py              deterministic sample-feed generator
   export.py             consumer-shaped CSV exports
   docs.py               lineage graph + catalog
@@ -212,8 +254,10 @@ warehouse/              the mini-dbt engine
 models/
   staging/ intermediate/ marts/   .sql models + schema.yml
 data_tests/             singular SQL business-rule tests
+scripts/handoff_smoke.py  loads every export back under its consumer contract
 seeds/                  generated raw feeds (checked in)
-tests/                  pytest suite (framework + data)
+tests/                  pytest suite (framework + data + features)
+.github/workflows/ci.yml  build + lint + test + smoke on 3.10–3.12
 exports/  reports/      build outputs (git-ignored)
 ```
 
@@ -225,9 +269,11 @@ The pattern is additive, which is the point:
   `stg_<name>.sql`, add tests in `schema.yml`.
 - **New mart** → add `marts/<name>.sql` using `{{ ref(...) }}`; the DAG picks up
   the dependencies automatically.
-- **Toward production** → point `runner.py` at a Snowflake/Postgres connection,
-  swap the CSV seeds for real extract loads, and add incremental materialisation
-  and freshness SLAs. The model SQL and tests carry over unchanged.
+- **Toward production** → point `runner.py` at a Snowflake/Postgres connection
+  and swap the CSV seeds for real extract loads. Node selection, incremental
+  materialisation and freshness SLAs are already here; the natural next steps are
+  snapshots/SCD-2 (rating migrations on `dim_security`), full Jinja macros, and
+  per-source freshness alerting. The model SQL and tests carry over unchanged.
 
 ## License
 

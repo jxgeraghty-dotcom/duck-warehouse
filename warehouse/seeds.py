@@ -168,14 +168,17 @@ def generate_seeds(project: Project, seed: int = 7, n_months: int = 36) -> list[
     sm_header = [
         "security_id", "name", "issuer", "asset_class", "gics_sector", "region",
         "currency", "rating", "maturity_date", "coupon_rate", "effective_duration",
-        "inception_date", "is_active",
+        "inception_date", "is_active", "ingested_at",
     ]
+    _cols = [c for c in sm_header if c != "ingested_at"]
+    default_ingest = "2026-06-30T08:00:00"
     sm_rows: list[list] = []
     for s in securities:
-        sm_rows.append([s[c] for c in sm_header])
+        sm_rows.append([s[c] for c in _cols] + [default_ingest])
     # messiness:
-    #  1) exact-ish duplicate of EQ001 with a leading space on the id (trim + dedup)
-    dup = [securities[0][c] for c in sm_header]
+    #  1) a stale feed re-sent EQ001 with a leading space and an OLDER load
+    #     timestamp; de-dup must keep the most recently ingested version.
+    dup = [securities[0][c] for c in _cols] + ["2026-05-15T08:00:00"]
     dup[0] = " EQ001"
     dup[1] = "Technology Equity 1 (stale feed)"
     sm_rows.append(dup)

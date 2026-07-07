@@ -117,3 +117,84 @@ def topological_order(models: dict[str, Model], project: Project) -> list[Model]
         stuck = sorted(set(models) - {m.name for m in order})
         raise ValueError(f"Cycle detected in model DAG among: {', '.join(stuck)}")
     return order
+
+
+# -- node selection (dbt-style graph operators) --------------------------
+
+def _dependents_map(models: dict[str, Model]) -> dict[str, list[str]]:
+    dependents: dict[str, list[str]] = {name: [] for name in models}
+    for model in models.values():
+        for ref in model.refs:
+            if ref in dependents:
+                dependents[ref].append(model.name)
+    return dependents
+
+
+def _ancestors(name: str, models: dict[str, Model]) -> set[str]:
+    """All models *upstream* of ``name`` (transitive refs)."""
+
+    out: set[str] = set()
+    stack = list(models[name].refs)
+    while stack:
+        cur = stack.pop()
+        if cur in out or cur not in models:
+            continue
+        out.add(cur)
+        stack.extend(models[cur].refs)
+    return out
+
+
+def _descendants(name: str, dependents: dict[str, list[str]]) -> set[str]:
+    """All models *downstream* of ``name`` (transitive dependents)."""
+
+    out: set[str] = set()
+    stack = list(dependents.get(name, []))
+    while stack:
+        cur = stack.pop()
+        if cur in out:
+            continue
+        out.add(cur)
+        stack.extend(dependents.get(cur, []))
+    return out
+
+
+def _resolve_selector(token: str, models: dict[str, Model],
+                      dependents: dict[str, list[str]]) -> set[str]:
+    """Resolve one selector like ``stg_prices+`` / ``+dim_security`` / ``+m+``."""
+
+    want_ancestors = token.startswith("+")
+    want_descendants = token.endswith("+")
+    base = token.strip("+")
+    if base not in models:
+        raise ValueError(
+            f"Selector '{token}' matches no model. Known models: "
+            f"{', '.join(sorted(models))}"
+        )
+    result = {base}
+    if want_ancestors:
+        result |= _ancestors(base, models)
+    if want_descendants:
+        result |= _descendants(base, dependents)
+    return result
+
+
+def select_nodes(models: dict[str, Model],
+                 select: list[str] | None,
+                 exclude: list[str] | None) -> set[str]:
+    """Return the set of model names matched by ``select`` minus ``exclude``.
+
+    Supports the core dbt graph operators: ``m`` (just m), ``m+`` (m and
+    descendants), ``+m`` (m and ancestors), ``+m+`` (both). Multiple selectors
+    union together.
+    """
+
+    dependents = _dependents_map(models)
+    if not select:
+        selected = set(models)
+    else:
+        selected = set()
+        for token in select:
+            selected |= _resolve_selector(token, models, dependents)
+    for token in exclude or []:
+        selected -= _resolve_selector(token, models, dependents)
+    return selected

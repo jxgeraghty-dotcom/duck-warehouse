@@ -106,3 +106,24 @@ def render(sql: str, project: "Project") -> str:
     sql = _REF_RE.sub(_ref, sql)
     sql = _SOURCE_RE.sub(_source, sql)
     return sql
+
+
+_THIS_RE = re.compile(r"\{\{\s*this\s*\}\}")
+_INCREMENTAL_BLOCK_RE = re.compile(
+    r"\{%\s*if\s+is_incremental\(\)\s*%\}(.*?)\{%\s*endif\s*%\}", re.DOTALL
+)
+
+
+def apply_incremental(sql: str, this_relation: str, is_incremental: bool) -> str:
+    """Resolve the incremental constructs in a model.
+
+    ``{{ this }}`` becomes the model's own relation, and any
+    ``{% if is_incremental() %} ... {% endif %}`` block is kept only when the
+    model is being appended to (the table already exists and this is not a
+    full refresh); otherwise the block is dropped so the first build reads the
+    whole history.
+    """
+
+    sql = _INCREMENTAL_BLOCK_RE.sub(lambda m: m.group(1) if is_incremental else "", sql)
+    sql = _THIS_RE.sub(this_relation, sql)
+    return sql

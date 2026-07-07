@@ -1,5 +1,29 @@
 version: 2
 
+# Source-level tests run against the raw (pre-staging) tables, catching feed
+# problems before any modelling happens. Only invariants that must hold even on
+# the messy raw feed belong here (e.g. keys are present) — uniqueness is asserted
+# after de-dup, on dim_security.
+sources:
+  - name: raw
+    tables:
+      - name: prices
+        columns:
+          - name: security_id
+            tests: [not_null]
+          - name: as_of_date
+            tests: [not_null]
+      - name: holdings
+        columns:
+          - name: account_id
+            tests: [not_null]
+          - name: security_id
+            tests: [not_null]
+      - name: factor_returns
+        columns:
+          - name: factor_id
+            tests: [not_null]
+
 models:
   - name: stg_security_master
     description: >

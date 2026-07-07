@@ -44,7 +44,9 @@ models:
         tests: [not_null]
 
   - name: fct_security_returns
-    description: Monthly security return fact (nulls dropped).
+    description: >
+      Monthly security return fact (nulls dropped). Materialised incrementally —
+      later runs append only newer months.
     columns:
       - name: total_return
         tests: [not_null]
@@ -65,8 +67,18 @@ models:
       - name: exposure
         tests: [not_null]
 
+  - name: mart_factor_covariance
+    description: Annualised factor covariance/correlation matrix (long format).
+    columns:
+      - name: factor_i
+        tests: [not_null]
+      - name: factor_j
+        tests: [not_null]
+      - name: covariance
+        tests: [not_null]
+
   - name: mart_asset_class_prices
-    description: Equal-weighted asset-class total-return indices (base 100), wide.
+    description: Market-value-weighted asset-class total-return indices (base 100), wide.
 
   - name: mart_macro_wide
     description: Macro series pivoted wide for the TAA backtester.

@@ -11,13 +11,12 @@ from __future__ import annotations
 import time
 from contextlib import closing
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 import duckdb
 
-from warehouse.dag import Model, discover_models, topological_order
+from warehouse.dag import Model, discover_models, select_nodes, topological_order
 from warehouse.project import Project
-from warehouse.templating import render
+from warehouse.templating import apply_incremental, render
 
 
 @dataclass
@@ -84,31 +83,64 @@ class Warehouse:
         return results
 
     # -- models ----------------------------------------------------------
-    def run(self, models: dict[str, Model] | None = None) -> list[StepResult]:
-        """Build all models in dependency order via CREATE OR REPLACE."""
+    def run(self, models: dict[str, Model] | None = None, *,
+            select: list[str] | None = None, exclude: list[str] | None = None,
+            full_refresh: bool = False) -> list[StepResult]:
+        """Build models in dependency order.
+
+        ``select`` / ``exclude`` take dbt-style graph selectors (``m+``, ``+m``)
+        to build a subgraph; ``full_refresh`` rebuilds incremental models from
+        scratch instead of appending.
+        """
 
         models = models if models is not None else discover_models(self.project)
         order = topological_order(models, self.project)
+        chosen = select_nodes(models, select, exclude)
         results: list[StepResult] = []
         for model in order:
-            results.append(self._build_model(model))
+            if model.name in chosen:
+                results.append(self._build_model(model, full_refresh=full_refresh))
         return results
 
-    def _build_model(self, model: Model) -> StepResult:
+    def _relation_exists(self, name: str) -> bool:
+        found = self.con.execute(
+            "SELECT count(*) FROM information_schema.tables "
+            "WHERE table_schema = ? AND table_name = ?",
+            [self.project.target_schema, name],
+        ).fetchone()[0]
+        return found > 0
+
+    def _build_model(self, model: Model, full_refresh: bool = False) -> StepResult:
         materialized = model.materialized(self.project)
         relation = f"{self.project.target_schema}.{model.name}"
-        keyword = "VIEW" if materialized == "view" else "TABLE"
-        compiled = render(model.raw_sql, self.project).strip().rstrip(";")
+        compiled_base = render(model.raw_sql, self.project).strip().rstrip(";")
 
         start = time.perf_counter()
         try:
-            self.con.execute(f"CREATE OR REPLACE {keyword} {relation} AS\n{compiled}")
+            if materialized == "incremental":
+                label = self._build_incremental(model, relation, compiled_base, full_refresh)
+            else:
+                keyword = "VIEW" if materialized == "view" else "TABLE"
+                self.con.execute(f"CREATE OR REPLACE {keyword} {relation} AS\n{compiled_base}")
+                label = materialized
             rows = self.con.execute(f"SELECT count(*) FROM {relation}").fetchone()[0]
-            return StepResult(model.name, model.layer, materialized, "ok",
+            return StepResult(model.name, model.layer, label, "ok",
                               rows, time.perf_counter() - start)
         except Exception as exc:  # noqa: BLE001
             return StepResult(model.name, model.layer, materialized, "error", 0,
                               time.perf_counter() - start, str(exc))
+
+    def _build_incremental(self, model: Model, relation: str,
+                           compiled_base: str, full_refresh: bool) -> str:
+        """Create-or-append an incremental model; return a status label."""
+
+        if full_refresh or not self._relation_exists(model.name):
+            sql = apply_incremental(compiled_base, relation, is_incremental=False)
+            self.con.execute(f"CREATE OR REPLACE TABLE {relation} AS\n{sql}")
+            return "incremental (full)"
+        sql = apply_incremental(compiled_base, relation, is_incremental=True)
+        self.con.execute(f"INSERT INTO {relation}\n{sql}")
+        return "incremental (append)"
 
     # -- helpers ---------------------------------------------------------
     def compile_model(self, model: Model) -> str:

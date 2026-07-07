@@ -1,14 +1,33 @@
 {{ config(materialized='table') }}
--- Cap-free, equal-weighted asset-class total-return indices (base 100),
--- pivoted wide. This is a genuine transformation — turning security returns
--- into asset-class series — that the TAA backtester consumes directly.
-with ac_returns as (
+-- Market-value-weighted asset-class total-return indices (base 100), pivoted
+-- wide. Each security is weighted by its share of its asset class by current
+-- market value (aggregated across accounts, via fct_portfolio_holdings), held
+-- constant across history — a current-weights index, more defensible than an
+-- equal-weighted one and reused directly by the TAA backtester.
+with mv as (
+    select security_id, sum(market_value) as mv
+    from {{ ref('fct_portfolio_holdings') }}
+    group by 1
+),
+
+weights as (
+    select
+        d.security_id,
+        d.asset_class,
+        mv.mv / sum(mv.mv) over (partition by d.asset_class) as wt
+    from {{ ref('dim_security') }} d
+    join mv using (security_id)
+),
+
+ac_returns as (
+    -- renormalise by the weight actually present each month (a security with a
+    -- missing return that month drops out and the rest are re-based)
     select
         r.as_of_date,
-        d.asset_class,
-        avg(r.total_return) as ac_return
+        w.asset_class,
+        sum(r.total_return * w.wt) / nullif(sum(w.wt), 0) as ac_return
     from {{ ref('fct_security_returns') }} r
-    join {{ ref('dim_security') }} d using (security_id)
+    join weights w using (security_id)
     group by 1, 2
 ),
 

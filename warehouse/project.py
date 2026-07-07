@@ -17,15 +17,26 @@ import yaml
 
 @dataclass(frozen=True)
 class SourceDef:
-    """A declared raw source: ``{{ source(schema, name) }}`` -> ``schema.name``."""
+    """A declared raw source: ``{{ source(schema, name) }}`` -> ``schema.name``.
+
+    Optional freshness config (``loaded_at_field`` + ``warn_after_days`` /
+    ``error_after_days``) lets ``dw source freshness`` flag stale feeds.
+    """
 
     schema: str
     name: str
     seed: str  # CSV filename under the seeds directory
+    loaded_at_field: str | None = None
+    warn_after_days: int | None = None
+    error_after_days: int | None = None
 
     @property
     def relation(self) -> str:
         return f"{self.schema}.{self.name}"
+
+    @property
+    def has_freshness(self) -> bool:
+        return self.loaded_at_field is not None
 
 
 @dataclass
@@ -87,8 +98,16 @@ def load_project(config_path: str | Path = "dw.yaml") -> Project:
     sources: dict[str, SourceDef] = {}
     for schema, tables in (raw.get("sources") or {}).items():
         for name, meta in (tables or {}).items():
-            seed = (meta or {}).get("seed", f"{name}.csv")
-            sources[f"{schema}.{name}"] = SourceDef(schema=schema, name=name, seed=seed)
+            meta = meta or {}
+            fresh = meta.get("freshness") or {}
+            sources[f"{schema}.{name}"] = SourceDef(
+                schema=schema,
+                name=name,
+                seed=meta.get("seed", f"{name}.csv"),
+                loaded_at_field=fresh.get("loaded_at_field"),
+                warn_after_days=fresh.get("warn_after_days"),
+                error_after_days=fresh.get("error_after_days"),
+            )
 
     return Project(
         root=root,

@@ -5,37 +5,38 @@ produces the full warehouse; `pytest` and `dw test` are green.
 
 ## What works
 
-- **Mini-dbt engine** (`warehouse/`): `source`/`ref`/`config` templating, model
-  discovery, DAG build with cycle + dangling-ref detection, layered
-  view/table materialisation, schema + singular tests, docs, and exports —
-  driven by the `dw` CLI.
-- **19 models** across staging (8) → intermediate (2) → marts (9), built in
-  dependency order against a local DuckDB file.
+- **Mini-dbt engine** (`warehouse/`): `source`/`ref`/`config`/`this`/
+  `is_incremental` templating, model discovery, DAG build with cycle +
+  dangling-ref detection, **node selection** (`--select`/`--exclude`), layered
+  **view/table/incremental** materialisation, schema + source + singular tests
+  with **severities** and **`--store-failures`**, **source freshness** SLAs,
+  docs, and exports — driven by the `dw` CLI.
+- **20 models** across staging (8) → intermediate (2) → marts (10), built in
+  dependency order against a local DuckDB file. `fct_security_returns` is
+  incremental; `mart_factor_covariance` produces an annualised covariance matrix.
 - **Deterministic sample feeds** (8 sources, ~40 instruments, 36 months) with
-  injected defects that staging repairs.
-- **40 declared data tests** (generic + singular) and **21 pytest tests** (unit
-  + end-to-end), all passing.
-- **7 consumer exports** matching the schemas the risk monitor, compliance
-  engine and TAA backtester already read.
+  injected defects that staging repairs; the EQ001 dedup keys on an `ingested_at`
+  load timestamp.
+- **49 declared data tests** (generic + source + singular) and **30 pytest
+  tests** (unit + end-to-end + features), all passing.
+- **8 consumer exports** + `scripts/handoff_smoke.py`, which loads each export
+  back under the consuming tool's column contract.
 - **`mart_data_quality`** observability table + generated lineage/catalog docs.
+- **CI** (`.github/workflows/ci.yml`): lint + build + test + smoke on Python
+  3.10–3.12.
 
 ## Verified
 
 ```
-dw build --generate   -> 8 seeds, 19 models, 40/40 tests pass
-pytest                -> 21 passed
-dw export             -> 7 files written to exports/
+dw build --generate        -> 8 seeds, 20 models, 49/49 tests pass
+dw source freshness        -> 6 sources fresh
+pytest                     -> 30 passed
+python scripts/handoff_smoke.py -> 8/8 exports load under contract
+ruff check                 -> clean
 ```
 
 ## Deliberately out of scope
 
-Incremental models, snapshots/SCD, full Jinja macros, and a real warehouse
-adapter — noted under *Extending* in the README as the path to production. The
-model SQL and tests are written so they carry over unchanged.
-
-## Possible next steps
-
-- Wire `export` output straight into a sibling tool's `data/` dir as a smoke
-  test of the end-to-end handoff.
-- Add source freshness thresholds and fail the build when a feed is stale.
-- Add a `--select` flag to build/test a subgraph (dbt-style node selection).
+Snapshots/SCD-2, full Jinja macros, and a real warehouse adapter — noted under
+*Extending* in the README as the path to production. The model SQL and tests are
+written so they carry over unchanged.
