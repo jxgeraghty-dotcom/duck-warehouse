@@ -21,8 +21,12 @@ produces the full warehouse; `pytest` and `dw test` are green.
 - **Deterministic sample feeds** (8 sources, ~40 instruments, 36 months) with
   injected defects that staging repairs; the EQ001 dedup keys on an `ingested_at`
   load timestamp.
-- **49 declared data tests** (generic + source + singular) and **30 pytest
+- **51 declared data tests** (generic + source + singular) and **34 pytest
   tests** (unit + end-to-end + features), all passing.
+- **Incremental strategies**: `append` and `delete+insert` (keyed replacement,
+  so restated rows in the recompute window are picked up, not duplicated).
+- **Failure isolation**: when a model fails, its descendants are skipped
+  (`[skip]`) rather than built against stale or missing relations.
 - **8 consumer exports** + `scripts/handoff_smoke.py`, which loads each export
   back under the consuming tool's column contract.
 - **`mart_data_quality`** observability table + generated lineage/catalog docs.
@@ -32,9 +36,9 @@ produces the full warehouse; `pytest` and `dw test` are green.
 ## Verified
 
 ```
-dw build --generate        -> 8 seeds, 20 models, 49/49 tests pass
+dw build --generate        -> 8 seeds, 20 models, 51/51 tests pass
 dw source freshness        -> 6 sources fresh
-pytest                     -> 30 passed
+pytest                     -> 34 passed
 python scripts/handoff_smoke.py -> 8/8 exports load under contract
 ruff check                 -> clean
 ```

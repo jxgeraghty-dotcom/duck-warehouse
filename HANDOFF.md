@@ -22,8 +22,8 @@ CI + README badges + green builds across every repo.
 **duck-warehouse — complete and shipped.**
 - Public repo: https://github.com/jxgeraghty-dotcom/duck-warehouse (default branch `main`).
 - **CI green** on Python 3.10 / 3.11 / 3.12 (ruff + `dw build` + pytest + handoff smoke).
-- 20 models (8 staging → 2 intermediate → 10 marts), 49 declared data tests,
-  30 pytest tests, 8 consumer exports. `dw build --generate` and `pytest` both pass; ruff clean.
+- 20 models (8 staging → 2 intermediate → 10 marts), 51 declared data tests,
+  34 pytest tests, 8 consumer exports. `dw build --generate` and `pytest` both pass; ruff clean.
 - Engine features: `source`/`ref`/`config`/`this`/`is_incremental` templating,
   DAG build with cycle detection, **node selection** (`--select`/`--exclude`),
   view/table/**incremental** materialisation, schema + source + singular tests
@@ -82,8 +82,9 @@ Every repo now carries a CI + License(MIT) + Python(3.10–3.12) badge set.
   time). A real deployment would enforce it and alert per source.
 - **taa-backtest CI has no lint/type-check** — the project ships no ruff/mypy
   config, so CI runs pytest only; adding a lint gate is a possible follow-up.
-- **Node.js 20 deprecation warnings** on `actions/checkout@v4` /
-  `actions/setup-python@v5` across all repos — cosmetic; bump when convenient.
+- ~~Node.js 20 deprecation warnings on `actions/checkout` / `setup-python`~~ —
+  resolved 2026-07-07: bumped to checkout@v5 / setup-python@v6 in every repo
+  (portfolio-risk-monitor already had it).
 
 ## Files / artifacts
 
@@ -94,7 +95,7 @@ Within this repo (`Data pipeline demo/`):
 - `warehouse/` — the mini-dbt engine: `templating.py`, `dag.py`, `runner.py`,
   `tests.py`, `freshness.py`, `seeds.py`, `export.py`, `docs.py`, `cli.py`.
 - `models/{staging,intermediate,marts}/` — the 20 SQL models + `schema.yml` tests.
-- `data_tests/` — six singular business-rule tests.
+- `data_tests/` — eight singular business-rule tests.
 - `scripts/handoff_smoke.py` — loads every export back under its consumer contract.
 - `seeds/` — the eight generated raw feeds (checked in).
 - `tests/` — pytest suite (framework + data + features).

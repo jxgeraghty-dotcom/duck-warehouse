@@ -113,7 +113,7 @@ specific staging transformation and then guarded by a test:
 | duplicate `EQ001` re-sent with a leading space | trim + `row_number()` de-dup | `unique` test on `dim_security.security_id` |
 | blank `asset_class` on `EQ007` | recover from the id prefix | `not_null` + `accepted_values` |
 | rating `' bbb '` on `CB003` | trim + upper-case | `accepted_values` |
-| currency `'usd'` on `EQ010` | upper-case | `accepted_values` on currency |
+| currency `'eur'` on `EQ010` | upper-case | `accepted_values` + `assert_price_currency_matches_master` |
 | a negative price and a blank price | set non-positive/blank → NULL | `assert_no_nonpositive_prices` |
 | benchmark weights summing to ~1.03 | re-based in `fct_benchmark_weights` | `assert_benchmark_weights_sum_to_one` |
 
@@ -185,9 +185,13 @@ dw test --select dim_security        # only the tests on dim_security
 
 ### Incremental models & freshness
 
-`fct_security_returns` is materialised **incrementally**: the first build loads
-the full history; later runs `INSERT` only months newer than what is stored
-(`dw run --full-refresh` forces a rebuild). `dw source freshness` compares each
+`fct_security_returns` is materialised **incrementally** with a
+`delete+insert` strategy: the first build loads the full history; later runs
+reprocess only months `>=` the newest month stored, replacing those rows by
+`unique_key` — so new months append *and* a restated price in the newest
+stored month is picked up rather than silently ignored. A plain `append`
+strategy (INSERT only) is also available, and `dw run --full-refresh` forces
+a rebuild. `dw source freshness` compares each
 feed's newest `as_of_date` against the `warn_after_days` / `error_after_days`
 policy in `dw.yaml` — the guardrail that catches a stalled feed before it
 produces a silently wrong number.
@@ -196,10 +200,12 @@ produces a silently wrong number.
 
 Two complementary layers, both run by `dw test` and by `pytest`:
 
-- **49 declared tests** — generic (`not_null`, `unique`, `accepted_values`,
-  `relationships`) on models *and* on raw sources, plus six singular
+- **51 declared tests** — generic (`not_null`, `unique`, `accepted_values`,
+  `relationships`) on models *and* on raw sources, plus eight singular
   business-rule tests in `data_tests/` (weights sum to one, no non-positive
-  prices, returns within bounds, factor covariance symmetric, and a
+  prices, returns within bounds, factor covariance symmetric, every non-USD
+  position has an FX rate on its valuation date, price currency matches the
+  security master, and a
   `severity: warn` check that no active instrument is past maturity).
   Failing tests can be materialised with `dw test --store-failures` (offending
   rows written to `reports/failures/`) so a red test is debuggable, not just a
@@ -214,7 +220,7 @@ Two complementary layers, both run by `dw test` and by `pytest`:
   price_history_months        36   monthly snapshots
   benchmark_weight_max_error   0   deviation of any benchmark from weight-sum 1.0
   accounts_total               2   accounts valued
-  aum_usd_millions         150.5   total valued AUM (multi-currency, USD)
+  aum_usd_millions         150.7   total valued AUM (multi-currency, USD)
   ```
 
 The `pytest` suite additionally asserts the *framework* itself is correct
