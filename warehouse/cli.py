@@ -38,8 +38,9 @@ def _print_steps(title: str, steps: list[StepResult]) -> bool:
     print(f"\n{title}")
     print("-" * len(title))
     ok = True
+    markers = {"ok": "[ok]  ", "skip": "[skip]"}
     for s in steps:
-        marker = "[ok] " if s.status == "ok" else "[ERR]"
+        marker = markers.get(s.status, "[ERR] ")
         print(f"  {marker} {s.layer:<12} {s.name:<28} {s.rows:>7,} rows  "
               f"{s.seconds*1000:6.0f} ms  {s.materialized}")
         if s.status != "ok":

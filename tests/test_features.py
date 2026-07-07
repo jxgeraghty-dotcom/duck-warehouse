@@ -92,6 +92,24 @@ def test_incremental_appends_only_new_months(fresh_project):
         assert wh.fetch(q)[0][0] == before + 1
 
 
+# -- failure isolation -------------------------------------------------------
+
+def test_failed_model_skips_descendants(fresh_project):
+    with Warehouse(fresh_project) as wh:
+        wh.con.execute("DROP TABLE raw.prices")
+        steps = wh.run()
+    by_name = {s.name: s for s in steps}
+    assert by_name["stg_prices"].status == "error"
+    # everything downstream of the failure is skipped, not built on stale data
+    for downstream in ("int_security_returns", "fct_security_returns",
+                       "int_positions_valued", "mart_asset_class_prices"):
+        assert by_name[downstream].status == "skip"
+    assert "stg_prices" in by_name["int_security_returns"].error
+    # unrelated branches of the DAG still build
+    assert by_name["stg_macro"].status == "ok"
+    assert by_name["mart_macro_wide"].status == "ok"
+
+
 # -- source freshness ------------------------------------------------------
 
 def test_freshness_reports_every_dated_source(built_project):

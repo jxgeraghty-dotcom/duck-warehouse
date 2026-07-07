@@ -26,7 +26,7 @@ class StepResult:
     name: str
     layer: str
     materialized: str
-    status: str          # "ok" | "error"
+    status: str          # "ok" | "error" | "skip"
     rows: int
     seconds: float
     error: str = ""
@@ -90,16 +90,30 @@ class Warehouse:
 
         ``select`` / ``exclude`` take dbt-style graph selectors (``m+``, ``+m``)
         to build a subgraph; ``full_refresh`` rebuilds incremental models from
-        scratch instead of appending.
+        scratch instead of appending. When a model fails, its descendants are
+        skipped rather than built against a stale or missing relation.
         """
 
         models = models if models is not None else discover_models(self.project)
         order = topological_order(models, self.project)
         chosen = select_nodes(models, select, exclude)
         results: list[StepResult] = []
+        blocked: set[str] = set()  # failed this run, or skipped because a parent did
         for model in order:
-            if model.name in chosen:
-                results.append(self._build_model(model, full_refresh=full_refresh))
+            if model.name not in chosen:
+                continue
+            bad_parents = [r for r in model.refs if r in blocked]
+            if bad_parents:
+                blocked.add(model.name)
+                results.append(StepResult(
+                    model.name, model.layer, model.materialized(self.project),
+                    "skip", 0, 0.0,
+                    f"upstream failed: {', '.join(bad_parents)}"))
+                continue
+            result = self._build_model(model, full_refresh=full_refresh)
+            if result.status == "error":
+                blocked.add(model.name)
+            results.append(result)
         return results
 
     def _relation_exists(self, name: str) -> bool:
