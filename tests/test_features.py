@@ -15,7 +15,7 @@ from warehouse.freshness import check_freshness
 from warehouse.project import load_project
 from warehouse.runner import Warehouse
 from warehouse.seeds import generate_seeds
-from warehouse.tests import TestCase, load_all_tests, run_tests
+from warehouse.tests import TestCase, load_all_tests, run_tests, select_test_cases
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -108,6 +108,21 @@ def test_failed_model_skips_descendants(fresh_project):
     # unrelated branches of the DAG still build
     assert by_name["stg_macro"].status == "ok"
     assert by_name["mart_macro_wide"].status == "ok"
+
+
+# -- test selection ----------------------------------------------------------
+
+def test_singular_tests_follow_selection(built_project):
+    models = discover_models(built_project)
+    cases = load_all_tests(built_project)
+    chosen = select_nodes(models, ["fct_benchmark_weights"], None)
+    kept = select_test_cases(cases, chosen)
+    names = {c.name for c in kept}
+    # the singular test that refs the selected model runs...
+    assert "assert_benchmark_weights_sum_to_one" in names
+    # ...but singular tests on other models, and source tests, do not
+    assert "assert_no_nonpositive_prices" not in names
+    assert not any(c.scope.startswith("source.") for c in kept)
 
 
 # -- source freshness ------------------------------------------------------

@@ -23,7 +23,7 @@ import yaml
 
 from warehouse.project import Project
 from warehouse.runner import Warehouse
-from warehouse.templating import extract_config, render, resolve_relation
+from warehouse.templating import extract_config, find_refs, render, resolve_relation
 
 
 @dataclass
@@ -38,6 +38,7 @@ class TestCase:
     column: str
     rows_sql: str        # selects the failing rows
     severity: str = "error"
+    refs: tuple[str, ...] = ()   # models a singular test reads (drives --select)
 
 
 @dataclass
@@ -138,12 +139,31 @@ def load_singular_tests(project: Project) -> list[TestCase]:
         rows = render(body, project).strip().rstrip(";")
         cases.append(TestCase(name=sql_path.stem, kind="singular", scope="",
                               column="", rows_sql=rows,
-                              severity=str(config.get("severity", "error"))))
+                              severity=str(config.get("severity", "error")),
+                              refs=tuple(find_refs(body))))
     return cases
 
 
 def load_all_tests(project: Project) -> list[TestCase]:
     return load_schema_tests(project) + load_singular_tests(project)
+
+
+def select_test_cases(cases: list[TestCase], chosen: set[str]) -> list[TestCase]:
+    """Restrict *cases* to the selected models, mirroring dbt's semantics.
+
+    Generic tests are kept when the model they are attached to is selected;
+    singular tests are kept when any model they ``ref()`` is selected. Source
+    tests attach to sources, not models, so a model selection drops them.
+    """
+
+    kept: list[TestCase] = []
+    for case in cases:
+        if case.kind == "singular":
+            if set(case.refs) & chosen:
+                kept.append(case)
+        elif case.scope in chosen:
+            kept.append(case)
+    return kept
 
 
 def run_tests(warehouse: Warehouse, cases: list[TestCase], *,

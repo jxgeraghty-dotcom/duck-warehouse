@@ -29,7 +29,7 @@ from warehouse.freshness import check_freshness
 from warehouse.project import Project, load_project
 from warehouse.runner import StepResult, Warehouse, results_as_dicts
 from warehouse.seeds import generate_seeds
-from warehouse.tests import load_all_tests, run_tests
+from warehouse.tests import load_all_tests, run_tests, select_test_cases
 
 
 def _print_steps(title: str, steps: list[StepResult]) -> bool:
@@ -84,8 +84,7 @@ def cmd_test(project: Project, args: argparse.Namespace) -> int:
     if select or exclude:
         models = discover_models(project)
         chosen = select_nodes(models, select, exclude)
-        # keep generic tests on selected models; singular tests always run
-        cases = [c for c in cases if c.kind == "singular" or c.scope in chosen]
+        cases = select_test_cases(cases, chosen)
     store = getattr(args, "store_failures", False)
     with Warehouse(project) as wh:
         results = run_tests(wh, cases, store_failures=store)
