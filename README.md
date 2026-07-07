@@ -1,5 +1,7 @@
 # duck-warehouse — a dbt-style analytics warehouse on DuckDB
 
+[![CI](https://github.com/jxgeraghty-dotcom/duck-warehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/jxgeraghty-dotcom/duck-warehouse/actions/workflows/ci.yml)
+
 A small, dependency-light data platform that models raw investment feeds into
 clean, tested, documented marts — and hands those marts to the other tools in
 this portfolio in exactly the shape each one expects.
