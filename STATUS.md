@@ -1,5 +1,9 @@
 # Status
 
+[![CI](https://github.com/jxgeraghty-dotcom/duck-warehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/jxgeraghty-dotcom/duck-warehouse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](pyproject.toml)
+
 **State:** complete, self-contained vertical slice. `dw build --generate`
 produces the full warehouse; `pytest` and `dw test` are green.
 
