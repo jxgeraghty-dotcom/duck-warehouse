@@ -184,8 +184,9 @@ def run_tests(warehouse: Warehouse, cases: list[TestCase], *,
             if store_failures and count > 0:
                 failures_dir.mkdir(parents=True, exist_ok=True)
                 dest = (failures_dir / f"{case.name}.csv").as_posix()
+                dest_sql = dest.replace("'", "''")
                 warehouse.con.execute(
-                    f"COPY (\n{case.rows_sql}\n) TO '{dest}' (HEADER, DELIMITER ',')")
+                    f"COPY (\n{case.rows_sql}\n) TO '{dest_sql}' (HEADER, DELIMITER ',')")
                 stored_at = dest
             results.append(TestResult(case.name, case.kind, case.scope, case.column,
                                       status, int(count), case.severity,

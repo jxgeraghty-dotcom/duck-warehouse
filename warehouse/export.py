@@ -100,7 +100,7 @@ def run_exports(warehouse: Warehouse) -> list[tuple[ExportSpec, int]]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[tuple[ExportSpec, int]] = []
     for spec in export_specs(warehouse.project.target_schema):
-        dest = (out_dir / spec.filename).as_posix()
+        dest = (out_dir / spec.filename).as_posix().replace("'", "''")
         warehouse.con.execute(
             f"COPY (\n{spec.sql}\n) TO '{dest}' (HEADER, DELIMITER ',')"
         )
