@@ -23,8 +23,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from warehouse.project import Project
 
-# A quoted string argument: 'foo' or "foo".
-_STR = r"""['"]([A-Za-z0-9_.\- ]+)['"]"""
+# A quoted string argument: 'foo' or "foo". Includes '+' and ',' so config
+# values like incremental_strategy='delete+insert' and unique_key='a, b' parse.
+_STR = r"""['"]([A-Za-z0-9_.\- +,]+)['"]"""
 
 _CONFIG_RE = re.compile(r"\{\{\s*config\((?P<args>.*?)\)\s*\}\}", re.DOTALL)
 _REF_RE = re.compile(rf"\{{\{{\s*ref\(\s*{_STR}\s*\)\s*\}}\}}")

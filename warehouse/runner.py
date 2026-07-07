@@ -150,15 +150,45 @@ class Warehouse:
 
     def _build_incremental(self, model: Model, relation: str,
                            compiled_base: str, full_refresh: bool) -> str:
-        """Create-or-append an incremental model; return a status label."""
+        """Create, append to, or upsert into an incremental model.
+
+        Two strategies, mirroring dbt:
+
+        * ``append`` (default): INSERT the new rows selected by the model's
+          ``is_incremental()`` filter. Fast, but a restated row for an
+          already-loaded key is never picked up.
+        * ``delete+insert``: stage the selected rows, DELETE the target rows
+          sharing a ``unique_key``, then INSERT the staged rows — so any key
+          the model chooses to reprocess is replaced, not duplicated.
+        """
 
         if full_refresh or not self._relation_exists(model.name):
             sql = apply_incremental(compiled_base, relation, is_incremental=False)
             self.con.execute(f"CREATE OR REPLACE TABLE {relation} AS\n{sql}")
             return "incremental (full)"
+
         sql = apply_incremental(compiled_base, relation, is_incremental=True)
-        self.con.execute(f"INSERT INTO {relation}\n{sql}")
-        return "incremental (append)"
+        strategy = model.config.get("incremental_strategy", "append")
+        if strategy == "append":
+            self.con.execute(f"INSERT INTO {relation}\n{sql}")
+            return "incremental (append)"
+        if strategy == "delete+insert":
+            unique_key = model.config.get("unique_key")
+            if not unique_key:
+                raise ValueError(
+                    f"Model '{model.name}' uses incremental_strategy='delete+insert' "
+                    f"but declares no unique_key in its config() block.")
+            keys = [k.strip() for k in unique_key.split(",")]
+            self.con.execute(f"CREATE OR REPLACE TEMP TABLE __dw_incremental AS\n{sql}")
+            match = " AND ".join(f"t.{k} = s.{k}" for k in keys)
+            self.con.execute(
+                f"DELETE FROM {relation} t USING __dw_incremental s WHERE {match}")
+            self.con.execute(f"INSERT INTO {relation} SELECT * FROM __dw_incremental")
+            self.con.execute("DROP TABLE __dw_incremental")
+            return "incremental (delete+insert)"
+        raise ValueError(
+            f"Unknown incremental_strategy '{strategy}' on model '{model.name}' "
+            f"(expected 'append' or 'delete+insert').")
 
     # -- helpers ---------------------------------------------------------
     def compile_model(self, model: Model) -> str:

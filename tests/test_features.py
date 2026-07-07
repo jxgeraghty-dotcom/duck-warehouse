@@ -92,6 +92,28 @@ def test_incremental_appends_only_new_months(fresh_project):
         assert wh.fetch(q)[0][0] == before + 1
 
 
+def test_incremental_delete_insert_picks_up_restatement(fresh_project):
+    """A revised price in the newest stored month replaces the old return row."""
+
+    q = ("SELECT total_return FROM main.fct_security_returns "
+         "WHERE security_id = 'EQ001' AND as_of_date = '2026-06-30'")
+    n = "SELECT count(*) FROM main.fct_security_returns"
+    with Warehouse(fresh_project) as wh:
+        before, total = wh.fetch(q)[0][0], wh.fetch(n)[0][0]
+
+        # upstream restates EQ001's June close 10% higher
+        wh.con.execute(
+            "UPDATE raw.prices "
+            "SET close_price = CAST(try_cast(close_price AS DOUBLE) * 1.10 AS VARCHAR) "
+            "WHERE security_id = 'EQ001' AND as_of_date = '2026-06-30'")
+        wh.run(select=["fct_security_returns"])
+
+        after = wh.fetch(q)[0][0]
+        assert after == pytest.approx((1 + before) * 1.10 - 1)
+        # replaced in place: no duplicate rows appended
+        assert wh.fetch(n)[0][0] == total
+
+
 # -- seed failure UX ---------------------------------------------------------
 
 def test_missing_seed_is_an_error_step_not_a_traceback(tmp_path):
